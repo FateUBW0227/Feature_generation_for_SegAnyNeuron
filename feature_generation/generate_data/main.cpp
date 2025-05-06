@@ -892,7 +892,7 @@ void generate_feature_map2(std::string root, std::string dir, double thred2, std
 
 
 
-void generate_feature_map(std::string root, double thred2)
+void generate_feature_map(std::string root, std::string save_dir, double thred2)
 {
 	auto start0 = std::chrono::high_resolution_clock::now();
 	bool exist_direction(false);
@@ -900,8 +900,8 @@ void generate_feature_map(std::string root, double thred2)
 	double thred = 0.0;
 
 	std::vector<std::string> names;
-	CL_IO::make_dirs(root + "/feature_img");
-	CL_IO::obtain_list(root + "/raw", names, "*.tif");
+	CL_IO::make_dirs(save_dir + "/feature_img");
+	CL_IO::obtain_list(root, names, "*.tif");
 	int par0(13), par1(12), par2(9);
 	Eigen::Tensor<float, 3> ss = Linwindows(par0, par1, par2); // 108 * L * 3
 	elmentvise_add_direct(ss, 6.0);  // trans for (6, 6, 6)
@@ -910,7 +910,6 @@ void generate_feature_map(std::string root, double thred2)
 	int ss_z = 3;
 	auto end0 = std::chrono::high_resolution_clock::now();
 	std::chrono::duration<double, std::milli> elapsed0 = end0 - start0;
-	std::cout << "time: " << elapsed0.count() << " ms." << std::endl;
 
 	if (!exist_direction)
 	{
@@ -919,18 +918,15 @@ void generate_feature_map(std::string root, double thred2)
 		std::vector<Eigen::Tensor<float, 3>> smoothed_kernels = Gauss_smooth(kernels);
 		for (int ii = 0; ii < names.size(); ++ii)
 		{
-			/*if (names[ii] != "622-0470-12_17_32-0_2_0.tif")
-				continue;*/
 			std::cout << names[ii] << " : " << ii << "/" << names.size() << std::endl;
 
 			auto start3 = std::chrono::high_resolution_clock::now();
 			auto start1 = std::chrono::high_resolution_clock::now();
 			
 			Voxel_L lrImage;
-			load_tif(root + "/raw/" + names[ii], lrImage);
+			load_tif(root + "/" + names[ii], lrImage);
 			auto end1 = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double, std::milli> elapsed1 = end1 - start1;
-			std::cout << "time load tif: " << elapsed1.count() << " ms." << std::endl;
 
 			auto start2 = std::chrono::high_resolution_clock::now();
 			std::vector<Eigen::Tensor<float, 3> > res;
@@ -941,7 +937,6 @@ void generate_feature_map(std::string root, double thred2)
 
 			auto end2_1 = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double, std::milli> elapsed2_1 = end2_1 - start2_1;
-			std::cout << "time calc direction: " << elapsed2_1.count() << " ms." << std::endl;
 
 			const int c = 1, d = lrImage.dim_z, w = lrImage.dim_y, h = lrImage.dim_x;
 			double sum = 0.0;
@@ -950,10 +945,10 @@ void generate_feature_map(std::string root, double thred2)
 				int type_id = 4;
 				Voxel_E Predict_d2(h, w, d);
 				fast_iter2(level, lrImage, idx_res, ss, ss_x, ss_y, ss_z, Predict_d2, type_id, thred, thred2);
-				CL_IO::make_dirs(root + "/feature_img/level_" + std::to_string(level) + "/");
+				CL_IO::make_dirs(save_dir + "/feature_img/level_" + std::to_string(level) + "/");
 
 				auto s1 = std::chrono::high_resolution_clock::now();
-				Predict_d2.write_compressed_data(root + "/feature_img/level_" + std::to_string(level) + "/"
+				Predict_d2.write_compressed_data(save_dir + "/feature_img/level_" + std::to_string(level) + "/"
 					/*+ std::to_string(type_id) + "_"*/ + names[ii]);
 				auto s2 = std::chrono::high_resolution_clock::now();
 				std::chrono::duration<double, std::milli> e0 = s2 - s1;
@@ -962,194 +957,20 @@ void generate_feature_map(std::string root, double thred2)
 			}
 			auto end3 = std::chrono::high_resolution_clock::now();
 			std::chrono::duration<double, std::milli> elapsed3 = end3 - start3;
-			std::cout << "generate and save time: " << elapsed3.count() - sum << " ms." << std::endl;
+			std::cout << std::endl;
 		}
 	}
 	else
 	{
-		/*for (int ii = 0; ii < names.size(); ++ii)
-		{
-			Voxel_L lrImage;
-			load_tif(root + "/raw/" + names[ii], lrImage);
-			Voxel_E dirSet;
-			load_tif(root + "/direction_img/" + names[ii], dirSet);
-			const int c = 1, d = lrImage.dim_z, w = lrImage.dim_y, h = lrImage.dim_x;
-			for (int level = 0; level < 7; level++)
-			{
-				int type_id = 5;
-				Voxel_E Predict_d1(h, w, d);
-				fast_iter(level, lrImage, dirSet, ss, ss_x, ss_y, ss_z, Predict_d1, type_id);
-				CL_IO::make_dirs(root + "/feature_img/level_" + std::to_string(level) + "/");
-				Predict_d1.write_compressed_data(root + "/feature_img/level_" + std::to_string(level) + "/" + names[ii]);
-			}
-		}*/
+		
 	}
 	std::cout << "Generate done." << std::endl;
-
-	//for (int ii = 0; ii < names.size(); ++ii)
-	//{
-	//	Voxel_L lrImage;
-	//	load_tif(root + "/raw/" + names[ii], lrImage);
-	//	Voxel_E my_direction_set(lrImage.dim_x, lrImage.dim_y, lrImage.dim_z);
-
-	//	/*Voxel_E dirSet;
-	//	load_tif(root + "/direction_img/" + names[ii], dirSet);*/
-
-	//	std::vector<Eigen::Tensor<float, 3> > res;
-	//	Eigen::Tensor<unsigned char, 3> idx_res(128, 128, 128);
-	//	Eigen::Tensor<unsigned char, 3> reverse_idx_res(128, 128, 128);
-	//	calc_direction_id(smoothed_kernels, lrImage, res, idx_res);
-	//	//calc_direction_set(smoothed_kernels, lrImage, my_direction_set);
-	//
-	//	for (int i = 0; i < 128; ++i)
-	//	{
-	//		for (int j = 0; j < 128; ++j)
-	//		{
-	//			for (int k = 0; k < 128; ++k)
-	//			{
-	//				reverse_idx_res(i, j, k) = idx_res(k, j, i);
-	//			}
-	//		}
-	//	}
-
-	//	int ss_x = par1 * par2;     // 12 * 9 directions
-	//	int ss_y = 2 * (par0 - 2);  // lengths
-	//	int ss_z = 3;
-
-	//	const int c = 1, d = lrImage.dim_z, w = lrImage.dim_y, h = lrImage.dim_x;
-	//	for (int level = 0; level < 7; level++)
-	//	{
-	//		int type_id = 5;
-	//		//Voxel_E Predict_d1(h, w, d);
-	//		//fast_iter(level, lrImage, dirSet, ss, ss_x, ss_y, ss_z, Predict_d1);
-	//		Voxel_E Predict_d2(h, w, d);
-	//		fast_iter2(level, lrImage, reverse_idx_res, ss, ss_x, ss_y, ss_z, Predict_d2, type_id);
-	//		CL_IO::make_dirs(root + "/feature_img/level_" + std::to_string(level) + "/");
-	//		//Predict_d1.write_compressed_data(root + "/feature_img/level_" + std::to_string(level) + "/ori_" + names[ii]);
-	//		Predict_d2.write_compressed_data(root + "/feature_img/level_" + std::to_string(level) + "/"
-	//			+ std::to_string(type_id) + "_" + names[ii]);
-	//	}
-
-		/*int dd = 128, ww = 128, hh = 128;
-		for (int i = 0; i < dd; ++i)
-		{
-			for (int j = 0; j < ww; ++j)
-			{
-				for (int k = 0; k < hh; ++k)
-				{
-					if (lrImage(i, j, k) > 35)
-					{
-						std::ofstream fout("E:/Segmentation/Datasets/LightSheet/Test/direction_vis/" + std::to_string(i) + "_"
-							+ std::to_string(j) + "_" + std::to_string(k) + "_new.swc");
-						fout << "1 0 " << i << " " << j << " " << k << " 0 -1" << std::endl;
-						int Id = dirSet(k, j, i);
-						Eigen::Vector3f dirx(ss(Id, 2, 0) - ss(Id, 0, 0), ss(Id, 2, 1) - ss(Id, 0, 1), ss(Id, 2, 2) - ss(Id, 0, 2));
-						fout << "2 0 " << i + dirx(2) << " " << j + dirx(1) << " " << k + dirx(0) << " 0 1" << std::endl;
-						fout << "3 0 " << i + dirx(2) * 2 << " " << j + dirx(1) * 2 << " " << k + dirx(0) * 2 << " 0 1" << std::endl;
-						fout.close();
-
-						fout.open("E:/Segmentation/Datasets/LightSheet/Test/direction_vis/" + std::to_string(i) + "_"
-							+ std::to_string(j) + "_" + std::to_string(k) + "_sec.swc");
-						fout << "1 0 " << i << " " << j << " " << k << " 0 -1" << std::endl;
-						Id = dirSet(i, j, k);
-						dirx = Eigen::Vector3f(ss(Id, 2, 0) - ss(Id, 0, 0), ss(Id, 2, 1) - ss(Id, 0, 1), ss(Id, 2, 2) - ss(Id, 0, 2));
-						fout << "2 0 " << i + dirx(0) << " " << j + dirx(1) << " " << k + dirx(2) << " 0 1" << std::endl;
-						fout << "3 0 " << i + dirx(0) * 2 << " " << j + dirx(1) * 2 << " " << k + dirx(2) * 2 << " 0 1" << std::endl;
-						fout.close();
-					}
-				}
-			}
-		}*/
-
-		//			Voxel_E Predict(h, w, d);
-		//			int Num = 4;
-		//			bool record = false;
-		////#pragma omp parallel for
-		//			for (int i = 0; i < d; ++i)
-		//			{
-		//				for (int j = 0; j < w; ++j)
-		//				{
-		//					for (int k = 0; k < h; ++k)
-		//					{
-		//						int Id = dirSet(k, j, i);
-		//						Eigen::Vector3f dirx(ss(Id, 2, 0) - ss(Id, 0, 0), ss(Id, 2, 1) - ss(Id, 0, 1), ss(Id, 2, 2) - ss(Id, 0, 2));
-		//						std::vector<Eigen::Vector3f> res = Coordinates(dirx);
-		//					/*	std::cout << dirx.transpose() << std::endl;
-		//						std::cout << res[0].transpose() << std::endl;
-		//						std::cout << res[1].transpose() << std::endl;
-		//						std::cout << res[2].transpose() << std::endl;*/
-		//						
-		//						std::vector<Eigen::MatrixXf> Point_v = ImgLineSampleSet(Eigen::Vector3f(i, j, k), res[0], res[1], res[2],
-		//							Num, lrImage);
-		//						/*if (i == 1 && j == 100 && k == 52)
-		//						{
-		//							std::cout << Point_v[0] << std::endl;
-		//							exit(0);
-		//						}*/
-		//						double thres = Point_v[0](0, Num);
-		//						for (int kk = 0; kk < 1; ++kk)
-		//						{
-		//							//double a = 0.1 * kk * thres;
-		//							//double b = kk * 1.0; // 12.0
-		//							double a = 0.1 * (7 - level) * thres;
-		//							double b = (7 - level) * 1.0; // 12.0
-		//							double thre_sub = a > b ? a : b;
-		//							
-		//							if ((thres - thre_sub - 1) > 20)
-		//							{
-		//								bool COUT(false);
-		//								/*if (Eigen::Vector3i(k, j, i) == Eigen::Vector3i(16, 61, 8))
-		//								{
-		//									COUT = true;
-		//								}*/
-		//								/*if (i == 1 && j == 100 && k == 52)
-		//								{
-		//									std::cout << "SS " << std::endl;
-		//								}*/
-		//
-		//								//std::vector<int> cs = LineregiongrowingSET(Point_v, Num, thres - thre_sub - 1, COUT);
-		//								std::vector<int> cs = LineregiongrowingSET_NEW(Point_v, Num, thres - thre_sub - 1, 1.1 * thres);
-		//								/*double p = double(cs[0] * cs[1] * cs[2]) / ((2 * Num + 1) * (2 * Num + 1) * (2 * Num + 1));*/
-		//								double p = double(cs[0]) / ((2 * Num + 1));
-		//								/*if (i == 63 && j == 3 && k== 0)
-		//								{
-		//									std::cout << " " << p << " " << thres - thre_sub - 1 << " " << 1.1 * thres << std::endl;
-		//									std::cout << cs[0] << " " << cs[1] << " " << cs[2] << std::endl;
-		//									std::cout << Point_v[0] << std::endl;
-		//							
-		//								}*/
-		//								Predict(k, j, i + kk * d) = int((1 - p) * 255.0);
-		//							}
-		//						}
-		//					}
-		//					//exit(0);
-		//				}
-		//			}
-		//			
-		//			/*for (int i = 0; i < Predict.dim_x; ++i)
-		//			{
-		//				for (int j = 0; j < Predict.dim_y; ++j)
-		//				{
-		//					for (int k = 0; k < Predict.dim_z; ++k)
-		//					{
-		//						if (Predict(i, j, k) != Predict_d(i, j, k))
-		//						{
-		//							std::cout << int(Predict(i, j, k)) << " " << int(Predict_d(i, j, k)) << std::endl;
-		//							std::cout << i << " " << j << " " << k << std::endl;
-		//							exit(0);
-		//						}
-		//					}
-		//				}
-		//			}*/
-		//			Predict.write_compressed_data(dir + "feature_img/level_" + std::to_string(level) + "/" + names[ii]);
-	//}
+	
 }
 
 
 void cut_image_block(std::string src_dir, std::string save_dir, std::string tar = "")
 {
-	/*std::string root = "E:/Segmentation/Datasets/Olfactory Projection Fibers/";
-	std::string save_dir = "E:/Segmentation/Datasets/Olfactory Projection Fibers/8/raw/";*/
 	std::string root = src_dir;
 	std::vector<std::string> names;
 	CL_IO::obtain_list(root, names, "*.tif");
@@ -1160,7 +981,6 @@ void cut_image_block(std::string src_dir, std::string save_dir, std::string tar 
 		std::string voxel_name = root + names[i];
 		Voxel_L block;
 		load_tif(voxel_name, block);
-		//cut_block(block, save_dir, names[i]);
 		cut_block_with_overlap2(block, save_dir, names[i]);
 		if (tar != "")
 			break;
@@ -1205,8 +1025,21 @@ void merge_image_blocks()
 
 int main(int argc, char *argv[]) // generate feature
 {
-	std::string root = "G:/Segmentation/Upload_data/Test_dataset/fMost_dataset/fMost_dataset3";
-	generate_feature_map(root, 0.4);
+	std::string src_dir;
+	std::string save_dir;
+	double lambda = 0.4;
+	if (argc > 3)
+	{
+		src_dir = argv[1];
+		save_dir = argv[2];
+		lambda = std::stod(argv[3]);
+		std::cout << src_dir << " " << save_dir << " " << lambda << std::endl;
+	}
+	else
+	{
+		return -1;
+	}
+	generate_feature_map(src_dir, save_dir, lambda);
 	return 1;
 }
 

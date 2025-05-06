@@ -576,26 +576,15 @@ calc_feature_map_with_meanstd(unsigned short *lrImage_d, unsigned char *dirset_d
 		ImgLineSampleSet(center, res, 4, lrImage_d, dim_x, dim_y, dim_z, Point0, Point1, Point2);
 		double ratio = 1.0;
 		bool negative = true;
-		/*if (k > 0 && k < dim_x - 1 && j > 0 && j < dim_y - 1 && i > 0 && i < dim_z - 1)
-			negative = calc_ratio(center, lrImage_d, dim_x, dim_y, dim_z);*/
 		
 		float thres = Point0[4 * 4];
-		//if (thres > mean  + 1.1 * std -  std * 0.15 * (level + 1))
-	   if (1/*thres > mean + 1.1 * std - std * 0.15 * (level + 1)*/)
+	   if (1)
 		{
-			//double a = 0.1 * (7 - level * 0.5) * std; // 7 - lve
 			double a = thred2 * (1 + level) * std; // 7 - lve // 0.4, 0.2, 0.1
-			/*if (thres < mean + std)
-				a = 0.2 * (1 + level) * std;*/
-			//a = 0.1 * (7 - level) * thres;
-			//double b = (7 - level) * 0.3;
 			double thre_sub = a;
-			//if (a > b)
-				//thre_sub = a;
-			if (1/*(thres - thre_sub - 1) > thred*/)  // 20  lightsheet 10.0
+			if (1)  
 			{
 				int res_num[3] = { 0, 0, 0 };
-				/*LineregiongrowingSET(Point0, Point1, Point2, 4 * (2 * 4 + 1), 4, thres - thre_sub - 1, res_num);*/
 				if (type_id > 2)
 					LineregiongrowingSET_NEW(Point0, Point1, Point2, 4 * (2 * 4 + 1), 4, thres - thre_sub - 1, thres + thre_sub, res_num);
 				else
@@ -611,7 +600,6 @@ calc_feature_map_with_meanstd(unsigned short *lrImage_d, unsigned char *dirset_d
 				}
 				else if ((type_id % 3) == 2)
 				{
-					/*p = double(res_num[0] * res_num[1] * res_num[2]) / (9 * 9 * 9);*/
 					double num = res_num[0];
 					if (num < res_num[1])
 					{
@@ -621,7 +609,6 @@ calc_feature_map_with_meanstd(unsigned short *lrImage_d, unsigned char *dirset_d
 						num = res_num[2];
 					p = double(num) / 9;
 				}
-
 				predict[idx] = int((1 - p) * 255);
 			}
 			else
@@ -629,18 +616,7 @@ calc_feature_map_with_meanstd(unsigned short *lrImage_d, unsigned char *dirset_d
 				predict[idx] = 0.0;
 			}
 		}
-		/*else
-		{
-			if (level < 3)
-			{
-				predict[idx] = 0.0;
-			}
-			else
-			{
-				double p = double(1 * 1) / (9 * 9);
-				predict[idx] = int((1 - p) * 255);
-			}
-		}*/
+		
 	}
 }
 
@@ -671,8 +647,6 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 	Inttofloat << < (total_pixel_num + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS >> > (lrImage_d, f_lrImage_d, total_pixel_num);
 
 	float *d_output;
-	
-	// 0 创建cudnn句柄
 	cudnnHandle_t cudnn;
 	auto cudnnHandle = cudnnCreate(&cudnn);
 	if (cudnnHandle != CUDNN_STATUS_SUCCESS) {
@@ -680,14 +654,11 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 
 	}
 
-	//1 创建数据和计算相关描述符
-	// 1.1 创建输入张量描述符
 	int q = 1, r = 1, m = dim_x, n = dim_y, p = dim_z;
-	//这里创建5维矩阵的原因是高维度卷积计算时，官方文档推荐使用 >= 4维的张量进行计算，不需要的维度定义为1即可
-	int inputDims[5] = { q,r,m, n, p }; // 输入张量的尺寸 
-	int input_stride[5]; //输入张量描述符的步长------**重要**重要**重要**
+	int inputDims[5] = { q,r,m, n, p };  
+	int input_stride[5];  
 	compute_stride(inputDims, input_stride);
-	cudnnTensorDescriptor_t inputDesc;//输入张量描述符
+	cudnnTensorDescriptor_t inputDesc; 
 	cudnnCreateTensorDescriptor(&inputDesc);
 	cudnnStatus_t status = cudnnSetTensorNdDescriptor(inputDesc, CUDNN_DATA_FLOAT, 5, inputDims, input_stride);
 	if (status != CUDNN_STATUS_SUCCESS) {
@@ -696,7 +667,6 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 	}
 
 	int kernel_num = 108;
-	// 1.2 创建卷积核描述符
 	int filterDims[5] = { kernel_num, 1, 13, 13, 13 };   // 卷积核尺寸
 	cudnnFilterDescriptor_t filterDesc;
 	cudnnCreateFilterDescriptor(&filterDesc);
@@ -706,10 +676,9 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 
 	}
 
-	// 1.3 创建卷积运算操作描述符
-	int  conmv_padA[3] = { 6, 6, 6 };//填充，表示沿各个维度补0的数量，是为了解决卷积后数据尺寸缩小的问题，设为全0则表示不需要填充
-	int conv_filterStrideA[3] = { 1,1,1 };//卷积时使用卷积核的步长，全1表示不跳过，均为单步步进
-	int conv_dilationA[3] = { 1,1,1 };//arrayLength（arg 2)数组所指示的每个维度膨胀因子,这个参数对是对卷积核操作的，某个维度膨胀系数>1时，会把卷积沿这个维度放大，中间的缺失数据用0补齐；全1表示无膨胀
+	int  conmv_padA[3] = { 6, 6, 6 }; 
+	int conv_filterStrideA[3] = { 1,1,1 };
+	int conv_dilationA[3] = { 1,1,1 }; 
 	cudnnConvolutionDescriptor_t convDesc;
 	cudnnCreateConvolutionDescriptor(&convDesc);
 	status = cudnnSetConvolutionNdDescriptor(convDesc, 3, conmv_padA, conv_filterStrideA, conv_dilationA, CUDNN_CROSS_CORRELATION, CUDNN_DATA_FLOAT);
@@ -718,7 +687,7 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 
 	}
 
-	// 1.4 计算输出张量的尺寸,自己手算也可以，但是还是建议用它的函数来计算，刚好可以验证之前的描述符创建的是否满足自己预期
+	 
 	// outputDim = 1 + ( inputDim + 2.*pad - (((filterDim-1).*dilation)+1) )./convolutionStride
 	int outputDims[5];
 	status = cudnnGetConvolutionNdForwardOutputDim(convDesc, inputDesc, filterDesc, 5, outputDims);
@@ -736,7 +705,6 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 	}
 	std::cout << outputDims[sizeof(outputDims) / sizeof(float) - 1] << std::endl;*/
 
-	// 1.5 创建输出张量描述符
 	cudnnTensorDescriptor_t outputDesc;
 	cudnnCreateTensorDescriptor(&outputDesc);
 	int output_stride[5]; //输出张量描述符的步长
@@ -755,18 +723,17 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 		std::cerr << "fail to get bytes of in tensor: " << cudnnGetErrorString(status) << std::endl;
 
 	}
-	size_t  out_bytes = 0;//输出张量所需内存
+	size_t  out_bytes = 0; 
 	status = cudnnGetTensorSizeInBytes(outputDesc, &out_bytes);
 	if (status != CUDNN_STATUS_SUCCESS) {
 		std::cerr << "fail to get bytes of out tensor: " << cudnnGetErrorString(status) << std::endl;
 
 	}
-	size_t filt_bytes = 1;//卷积核所需内存
+	size_t filt_bytes = 1; 
 	for (int i = 0; i < sizeof(filterDims) / sizeof(int); i++) {
 		filt_bytes *= filterDims[i];
 	}
 	filt_bytes *= sizeof(float);
-	//自动寻找最优卷积计算方法,函数自动选择的最优算法保存在perfResults结构体中
 	int returnedAlgoCount = 0;
 	cudnnConvolutionFwdAlgoPerf_t perfResults;
 	status = cudnnGetConvolutionForwardAlgorithm_v7(cudnn, inputDesc, filterDesc, convDesc, outputDesc, 1, &returnedAlgoCount, &perfResults);
@@ -797,31 +764,16 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 
 	}
 
-	//2.2 在主机上分配内存存储输入张量、卷积核和输出张量
-
-
-	// 2.3 数据初始化
-	// cuda要求输入是一维数据（NCHW格式）,所以将原数据reshape成一行数据,输入到GPU之后会根据描述符中的维度参数还原的，所以不用担心,
-	// 无论多少维的数据， 按顺序reshape为一行即可(但是NCHW格式和NHWC格式的reshape方式是不一样的，一定要注意，上下文匹配即可）
-	// 2.3.1 输入张量   
-
-	//2.3.2 卷积核数据，我随便举的例子，可以根据自己的需求自己改，只要维度和前面定义的卷积核维度一致即可
-
-
-	// 2.4 在设备（gpu)上分配内存空间
+	
 	cudaMalloc(&d_output, out_bytes);
 	void* d_workspace{ nullptr };
 	cudaMalloc(&d_workspace, workspace_bytes);
-
-	// 3 将输入张量和卷积核拷贝到设备
 
 	float* kernel_d;
 	cudaMalloc(&kernel_d, sizeof(float) * kernel_dim * kernel_dim * kernel_dim * kernel_num);
 	for (int i = 0; i < kernel_num; ++i)
 		cudaMemcpy(kernel_d + i * kernel_dim * kernel_dim * kernel_dim, kernels[i].data(), sizeof(float) * kernel_dim * kernel_dim * kernel_dim, cudaMemcpyHostToDevice);
 
-
-	// 4 进行卷积计算
 	float alpha = 1.0f, beta = 0.0f;
 	status = cudnnConvolutionForward(cudnn, &alpha, inputDesc, f_lrImage_d, filterDesc, kernel_d, convDesc, CUDNN_CONVOLUTION_FWD_ALGO_IMPLICIT_GEMM, d_workspace, workspace_bytes, &beta, outputDesc, d_output);
 	if (status != CUDNN_STATUS_SUCCESS) {
@@ -831,24 +783,6 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 	cudaEventRecord(end);
 	cudaEventSynchronize(end);
 
-	// 5 将输出矩阵拷贝回主机
-	//Eigen::Tensor<float, 3> res_c(128, 128, 128);
-	/*for (int i = 0; i < 108; ++i)
-	{
-		cudaMemcpy(res_c.data(), d_output + i * 128 * 128 * 128, sizeof(float) * 128 * 128 * 128, cudaMemcpyDeviceToHost);
-		res_C.push_back(res_c);
-	}*/
-	//打印输出矩阵
-	/*for (int i = 0; i < out_bytes; i++) {
-		std::cout << output[i] << " ";
-	}*/
-
-
-	// 6 释放资源
-	//6.1 释放三个变量占用的内存
-
-	
-	//6.2 释放描述符占用的内存
 	status = cudnnDestroyTensorDescriptor(inputDesc);
 	if (status != CUDNN_STATUS_SUCCESS) {
 		std::cerr << "fail to destroy input tensor desc: " << cudnnGetErrorString(status) << std::endl;
@@ -869,33 +803,16 @@ extern "C" void conv_new(Voxel_L &lrImage, std::vector<Eigen::Tensor<float, 3> >
 		std::cerr << "fail to destroy outout tensor desc: " << cudnnGetErrorString(status) << std::endl;
 
 	}
-	//6.3 释放cudnn句柄内存
+	
 	status = cudnnDestroy(cudnn);
 	if (status != CUDNN_STATUS_SUCCESS) {
 		std::cerr << "fail to destroy cudnn handle" << std::endl;
 
 	}
-	//6.4 释放主机上存储数组的内存
-	std::cout << "Done." << std::endl;
 
 	float time;
 	cudaEventElapsedTime(&time, start, end);
-	std::cout << "GPU Time: " << time << std::endl;
 	
-	
-	/*for (int i = 0; i < kernels.size(); ++i)
-	{
-		float* kernel_d;
-		cudaMalloc(&kernel_d, sizeof(float) * kernel_dim * kernel_dim * kernel_dim);
-		cudaMemcpy(kernel_d, kernels[i].data(), sizeof(float) * kernel_dim * kernel_dim * kernel_dim, cudaMemcpyHostToDevice);
-
-		Eigen::Tensor<float, 3> res_c(128, 128, 128);
-		conv_mult << < (total_pixel_num + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS >> > (padded_img_d, kernel_d, res + i * total_pixel_num,
-			lrImage.dim_x, lrImage.dim_y, lrImage.dim_z, kernel_dim, total_pixel_num);
-		cudaMemcpy(res_c.data(), res + i * total_pixel_num, sizeof(float) * 128 * 128 * 128, cudaMemcpyDeviceToHost);
-		res_C.push_back(res_c);
-	}*/
-
 	unsigned char *id_res;
 	cudaMalloc(&id_res, sizeof(unsigned char*) * total_pixel_num);
 	obtain_ids << < (total_pixel_num + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS >> > (id_res, d_output, total_pixel_num, kernels.size());
@@ -1112,7 +1029,6 @@ extern "C" void fast_iter2(int level, Voxel_L &lrImage, Eigen::Tensor<unsigned c
 	cudaMemcpy(&mean, mean_d, sizeof(double), cudaMemcpyDeviceToHost);
 	calc_std << < (total_pixel_num + NUM_THREADS - 1) / NUM_THREADS, NUM_THREADS >> > (lrImage_d, total_pixel_num, mean, std_d, valid);
 	cudaMemcpy(&std, std_d, sizeof(double), cudaMemcpyDeviceToHost);
-	//std = 40.0 * 40.0;
 	if(level == 0)
 		printf("Valid: %d, Mean : %f, Std : %f\n", valid, mean, std::sqrt(std));
 
